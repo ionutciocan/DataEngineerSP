@@ -15,7 +15,8 @@ from cosmos import (
     RenderConfig,
 )
 from cosmos.constants import TestBehavior
-from imdb_ingest import load_imdb_data
+from scripts.imdb_ingest import load_imdb_data
+
 DBT_PROJECT_PATH = Path("/opt/airflow/dbt_project")
 DBT_PROFILES_YML = DBT_PROJECT_PATH / "profiles.yml"
 
@@ -33,40 +34,53 @@ execution_config = ExecutionConfig(
     dbt_executable_path="dbt",
 )
 
-# Emit a separate Airflow task for tests after each model
 render_config = RenderConfig(
     test_behavior=TestBehavior.AFTER_EACH,
-    exclude=["example"],
 )
+
 default_args = {
     "owner": "IMDb",
     "depends_on_past": False,
     "retries": 1,
 }
-with DAG(
-dag_id="ingest_dag",
-description="IMDb: parquet → DuckDB bronze → dbt staging/marts",
-default_args=default_args,
-start_date=datetime(2026, 7, 1),
-schedule=None,
-catchup=False,
-max_active_tasks=1,
-tags=["IMDb", "duckdb", "dbt"],
-doc_md="""
-### IMDb pipeline
 
-1. **load_IMDb_data** — parquet → `bronze.IMDb`
-2. **validate_bronze** — fail fast if Bronze is empty
-3. **dbt_seed** — load `taxi_zone_lookup`
-4. **dbt_run** — staging → intermediate → marts
-5. **dbt_test** — schema + custom tests
-""",
+with DAG(
+        dag_id="imdb_end_to_end_pipeline",
+        description="IMDb: parquet → DuckDB bronze → dbt staging/marts",
+        default_args=default_args,
+        start_date=datetime(2026, 7, 1),
+        schedule_interval="@weekly",
+        catchup=False,
+        max_active_tasks=1,
+        tags=["IMDb", "duckdb", "dbt"],
+        doc_md="""
+    ### IMDb Data Pipeline
+
+    1. **load_imdb_data**: Extraction & Loading into DuckDB
+    2. **run_dbt_snapshots**: Tracks Slowly Changing Dimensions (SCD Type 2)
+    3. **transform_and_test**: dbt staging -> intermediate -> marts -> validation tests
+    """,
 ) as dag:
     start = EmptyOperator(task_id="start")
 
-    load =PythonOperator(
-    task_id="load_imdb_data",
-    python_callable=load_imdb_data,
+    load = PythonOperator(
+        task_id="load_imdb_data",
+        python_callable=load_imdb_data,
     )
-    finish =EmptyOperator(task_id="finish")
-    start>>load>>finish
+
+    run_snapshots = BashOperator(
+        task_id="run_dbt_snapshots",
+        bash_command=f"dbt snapshot --project-dir {DBT_PROJECT_PATH} --profiles-dir {DBT_PROJECT_PATH}",
+    )
+
+    dbt_transform_and_test = DbtTaskGroup(
+        group_id="transform_and_test",
+        project_config=project_config,
+        profile_config=profile_config,
+        execution_config=execution_config,
+        render_config=render_config,
+    )
+
+    finish = EmptyOperator(task_id="finish")
+
+    start >> load >> run_snapshots >> dbt_transform_and_test >> finish

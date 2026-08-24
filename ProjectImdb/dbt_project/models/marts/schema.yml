@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: fct_title_ratings
+    columns:
+      - name: title_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_title')
+                field: title_id
+
+  - name: dim_title
+    columns:
+      - name: title_id
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_year
+    columns:
+      - name: year
+        tests:
+          - not_null
+          - unique
