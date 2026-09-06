@@ -1,0 +1,15 @@
+name: 'imdb_project'
+version: '1.0.0'
+config-version: 2
+
+profile: 'ProjectImdb'
+
+model-paths: ["models"]
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  imdb_project:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

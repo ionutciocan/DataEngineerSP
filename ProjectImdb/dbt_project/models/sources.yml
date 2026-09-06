@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: imdb_raw
+    description: "Raw files in parquet format"
+    tables:
+      - name: title_basics
+        meta:
+          external_location: "../raw/title.basics.parquet"
+      - name: title_ratings
+        meta:
+          external_location: "../raw/title.ratings.parquet"
+      - name: title_crew
+        meta:
+          external_location: "../raw/title.crew.parquet"
+      - name: title_principals
+        meta:
+          external_location: "../raw/title.principals.parquet"
+      - name: name_basics
+        meta:
+          external_location: "../raw/name.basics.parquet"
+      - name: title_akas
+        meta:
+          external_location: "../raw/title.akas.parquet"
+
